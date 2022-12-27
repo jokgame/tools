@@ -1,0 +1,8 @@
+package cfg
+
+{{$type := .Name}}
+type {{$type}} int
+{{.Doc}}const (
+	{{range $field := .Fields}}{{$type}}_{{$field.Name}} {{$type}} = {{$field.Value}}{{$field.Comment}}
+	{{end}}
+)

@@ -1,0 +1,60 @@
+package cfg
+
+import (
+	"encoding/json"
+	"io/ioutil"
+)
+
+{{$type := .Name}}
+{{.Doc}}type {{$type}} struct {
+	{{range $ext := .Extends}}{{$ext.Name}}
+	{{end -}}
+	{{range $field := .Fields}}{{$field.Name | title}} {{context.BuildType $field.Type}} `json:"{{$jsonTag := $field.GetTag "name"}}{{if eq "" $jsonTag}}{{$field.Name}}{{else}}{{$jsonTag}}{{end}}"` {{$field.Comment}}
+	{{end -}}
+}
+
+type {{$type}}Containter struct {
+	Indexes map[int]int `json:"indexes"`
+	Values  []{{$type}}     `json:"values"`
+}
+
+var g{{$type}}Containter = &{{$type}}Containter{
+	Indexes: make(map[int]int),
+}
+
+func Get{{$type}}Array() []{{$type}} {
+	return g{{$type}}Containter.Values
+}
+
+func CountOf{{$type}}() int {
+	return len(g{{$type}}Containter.Values)
+}
+
+func Get{{$type}}(id int) *{{$type}} {
+	index, ok := g{{$type}}Containter.Indexes[id]
+	if ok {
+		return Get{{$type}}ByIndex(index)
+	}
+	return nil
+}
+
+func Get{{$type}}ByIndex(index int) *{{$type}} {
+	if index >= 0 && index < len(g{{$type}}Containter.Values) {
+		return &g{{$type}}Containter.Values[index]
+	}
+	return nil
+}
+
+func Load{{$type}}(filename string) error {
+	data, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(data, g{{$type}}Containter)
+}
+
+const Table{{$type}} = "{{$type}}"
+
+func init() {
+	RegisterLoader(Table{{$type}}, Load{{$type}})
+}

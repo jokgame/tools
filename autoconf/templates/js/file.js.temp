@@ -1,0 +1,174 @@
+(function () {
+
+	{{- $module := bareFilename context.Filename}}
+	var {{$module}} = {};
+	var loaders = [];
+{{define "T_const"}}
+{{- range $decl := .}}
+	{{$module := bareFilename context.Filename -}}
+	{{range $field := $decl.Consts}}{{$module}}.{{$field.Name}} = {{$field.ValueString}}; {{$field.Comment}}
+	{{end -}}
+{{end}}
+{{end -}}
+
+{{define "T_enum"}}
+	{{$module := bareFilename context.Filename -}}
+	{{$type := .Name -}}
+	{{if ne "" .Doc}}{{join "" (.Doc) "\t"}}{{end}}function {{$type}}() {}
+	{{range $field := .Fields}}{{$type}}.{{$field.Name}} = {{$field.Value}}; {{$field.Comment}}
+	{{end -}}
+	{{$module}}.{{$type}} = {{$type}};
+{{end -}}
+
+{{define "T_struct"}}
+	{{- $module := bareFilename context.Filename}}
+	{{- $type := .Name}}
+	{{if ne "" .Doc}}{{join "" (.Doc) "\t"}}{{end}}{{$module}}.{{$type}} = function() {
+		{{range $ext := .Extends}}{{$bean := context.Pkg.FindBean $ext.Name}}{{range $field := $bean.Fields}}// {{context.BuildType $field.Type}}
+		this.{{$jsonTag := $field.GetTag "name"}}{{if eq "" $jsonTag}}{{$field.Name}}{{else}}{{$jsonTag}}{{end}} = null; {{$field.Comment}}
+		{{end -}}
+		{{end -}}
+		{{range $field := .Fields}}this.{{$jsonTag := $field.GetTag "name"}}{{if eq "" $jsonTag}}{{$field.Name}}{{else}}{{$jsonTag}}{{end}} = null; {{$field.Comment}} // {{context.BuildType $field.Type}}
+		{{end -}}
+		// ...
+	};
+{{end -}}
+
+{{define "T_protocol"}}
+	{{- $exportTag := .GetTag "export"}}
+	{{- if (OR (eq "" $exportTag) (contains "client" $exportTag))}}
+
+	{{- $module := bareFilename context.Filename}}
+	{{- $type := .Name}}
+	{{if ne "" .Doc}}{{join "" (.Doc) "\t"}}{{end}}{{$module}}.{{$type}} = function() {
+		{{range $ext := .Extends}}{{$bean := context.Pkg.FindBean $ext.Name}}{{range $field := $bean.Fields}}// {{context.BuildType $field.Type}}
+		this.{{$jsonTag := $field.GetTag "name"}}{{if eq "" $jsonTag}}{{$field.Name}}{{else}}{{$jsonTag}}{{end}} = null; {{$field.Comment}}
+		{{end -}}
+		{{end -}}
+		{{range $field := .Fields}}this.{{$jsonTag := $field.GetTag "name"}}{{if eq "" $jsonTag}}{{$field.Name}}{{else}}{{$jsonTag}}{{end}} = null; {{$field.Comment}} // {{context.BuildType $field.Type}}
+		{{end -}}
+		// ...
+	};
+
+	var g{{.Name}}s = {};
+	function load{{.Name}}(callback, retryTimes) {
+		retryTimes = retryTimes === undefined ? 5 : retryTimes;
+		var filename = "res/cfg/{{.Name}}.json";
+		if (!cc.sys.isNative) {
+			if (typeof getVersionedResource === 'function') {
+				filename = getVersionedResource(filename);
+			} else {
+				filename += "?_t=" + (new Date() - 0)
+			}
+		}
+		cc.log("load config %s", filename);
+		cc.loader.loadJson(filename, function(err, data) {
+			if (err) {
+				cc.error("load {{.Name}} error: %s", err.errorMessage || JSON.stringify(err));
+				if (typeof setTimeout === 'function' && retryTimes > 0) {
+					setTimeout(function() {
+						load{{.Name}}(callback, retryTimes - 1);
+					}, 1000);
+				} else {
+					if (typeof alert === 'function') {
+						alert("加载 {{.Name}} 失败！请刷新网页或重新进入游戏");
+					}
+				}
+				return;
+			} else {
+				g{{.Name}}s = data;
+				g{{.Name}}s.indexes = g{{.Name}}s.indexes || [];
+				g{{.Name}}s.values = g{{.Name}}s.values || [];
+				for (var i = 0; i < g{{.Name}}s.values.length; i++) {
+					g{{.Name}}s.values[i].__index__ = i;
+				}
+				{{- if eq .Name "CPath" }}
+
+				/********************
+				 * parse path begin */
+				var regexpLeftParenPrefix = /^\(/;
+				var regexpRightParenPrefix = /^\)/;
+
+				function parsePath(s) {
+					var points = [];
+					var arr = s.split(")(");
+					for (var i = 0; i < arr.length; i++) {
+						var pair = arr[i];
+						if (pair.startsWith("(")) {
+							pair = pair.replace(regexpLeftParenPrefix, '');
+						}
+						if (pair.startsWith(")")) {
+							pair = pair.replace(regexpRightParenPrefix, '');
+						}
+						pair = pair.split(",");
+						points.push({
+							row: parseInt(pair[0]) - 1,
+							column: parseInt(pair[1]) - 1
+						});
+					}
+					return points;
+				}
+				for (var i = 0; i < g{{.Name}}s.values.length; i++) {
+					g{{.Name}}s.values[i].points = parsePath(g{{.Name}}s.values[i].points);
+				}
+				/******************
+				 * parse path end */
+				{{end}}
+			}
+			callback(-1);
+		});
+	}
+
+	{{$module}}.get{{.Name}}ByIndex = function(index) {
+		if (index >= 0 && index < g{{.Name}}s.values.length) {
+			return g{{.Name}}s.values[index];
+		}
+		return null;
+	};
+
+	{{$module}}.get{{.Name}} = function(id) {
+		var index = g{{.Name}}s.indexes[id];
+		if (typeof index === 'number') {
+			return {{$module}}.get{{.Name}}ByIndex(index);
+		}
+		return null;
+	};
+
+	{{$module}}.countOf{{.Name}} = function() {
+		return g{{.Name}}s.values.length;
+	};
+
+	{{$module}}.foreach{{.Name}} = function(visitor) {
+		if (g{{.Name}}s.values) {
+			for (var i = 0; i < g{{.Name}}s.values.length; i++) {
+				if (visitor(g{{.Name}}s.values[i], i)) {
+					return true
+				}
+			}
+		}
+		return false;
+	};
+
+	{{$module}}.sort{{.Name}}Array = function(arr) {
+		arr.sort(function(a, b) {
+			return a.__index__ - b.__index__;
+		});
+	};
+
+	loaders.push(load{{.Name}});
+{{end -}}
+{{end -}}
+
+	{{.GenerateDeclsBySubTemplates}}
+	{{$module}}.loadAll = function(callback) {
+		for (var i = 0; i < loaders.length; i++) {
+			loaders[i](callback);
+		}
+	};
+
+	{{$module}}.getLoaderCount = function() {
+		return loaders.length;
+	};
+
+	return {{$module}};
+})();

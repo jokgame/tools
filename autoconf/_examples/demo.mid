@@ -1,0 +1,40 @@
+package demo;
+
+enum Color {
+	Red = 1, // 红色
+	Orange = 2, // 橙色
+	Yellow = 3, // 黄色
+	Green = 4, // 绿色
+	Blue = 5, // 蓝色
+	Purple = 6, // 紫色
+}
+
+struct Attr {
+	int32 a;
+	int32 b;
+	int32 c;
+	int32 d;
+}
+
+struct Position {
+	int z;
+	int x;
+	int y;
+}
+
+protocol Item `export:"client"` {
+	int32 id; // ID
+	string name `name:"name"`; // 名字
+	string icon; // 图标
+	Color color `name:"color"`; // 颜色
+	array<int32,3> values; // 数值
+	Attr mainAttr; // 主属性
+	array<Attr,2> attrs; // 属性
+	Position pos; // 位置
+	bool canSale; // 是否可出售
+	array<Position, 2> next; // 后续位置列表
+}
+
+protocol Stone extends Item {
+	float32 price; // 价格
+}

@@ -1,0 +1,9 @@
+package cfg
+
+{{$type := .Name}}
+{{.Doc}}type {{$type}} struct {
+	{{range $ext := .Extends}}{{$ext.Name}}
+	{{end}}
+	{{range $field := .Fields}}{{$field.Name | title}} {{context.BuildType $field.Type}} `json:"{{$jsonTag := $field.GetTag "name"}}{{if eq "" $jsonTag}}{{$field.Name}}{{else}}{{$jsonTag}}{{end}}"` {{$field.Comment}}
+	{{end}}
+}
