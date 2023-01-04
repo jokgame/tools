@@ -533,13 +533,19 @@ func (node *Node) Key(pkg *build.Package) string {
 	keyField := keyFieldOfBean(pkg, node.bean)
 	n := node.children.findNodeByField(keyField)
 	if n != nil {
-		return fmt.Sprintf("%v", n.Value(pkg))
+		var value = n.Value(pkg, true)
+		if value != nil {
+			return fmt.Sprintf("%v", value)
+		}
 	}
 	return ""
 }
 
-func (node *Node) Value(pkg *build.Package) interface{} {
+func (node *Node) Value(pkg *build.Package, required bool) interface{} {
 	log.Debug().Printf("data of node '%s': '%s'", node.text, node.data)
+	if required && node.data == "" && !node.isString() {
+		return nil
+	}
 	if node.isInteger() {
 		i, _ := strconv.ParseInt(node.data, 10, 64)
 		return i
@@ -569,7 +575,7 @@ func (node *Node) Value(pkg *build.Package) interface{} {
 	if node.isArray() {
 		values := make([]interface{}, 0)
 		for i := 0; i < node.children.Len(); i++ {
-			value := node.children.get(i).Value(pkg)
+			value := node.children.get(i).Value(pkg, required)
 			if value == nil {
 				log.Debug().Printf("%dth value of array is nil", i)
 			} else {
@@ -583,7 +589,7 @@ func (node *Node) Value(pkg *build.Package) interface{} {
 			values := make(map[string]interface{})
 			if node.children != nil {
 				for _, v := range node.children.list() {
-					value := v.Value(pkg)
+					value := v.Value(pkg, required)
 					if value == nil {
 						log.Debug().Printf("field '%s' is nil", v.text)
 					} else {
